@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DB Power Consultant Camera</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#071b35,#1769aa,#00a8cc);display:flex;justify-content:center;align-items:center;padding:20px}.camera-card{width:min(950px,100%);background:#fff;border-radius:22px;padding:25px;box-shadow:0 25px 70px rgba(0,0,0,.35)}.title{text-align:center;color:#071b35;margin-bottom:20px}.title h1{margin:0 0 5px;font-size:24px}.title p{margin:0;color:#64748b;font-size:13px}.camera-area{width:100%;background:#111827;border-radius:16px;overflow:hidden}.camera-area video{width:100%;max-height:580px;display:block;background:#000;object-fit:cover}canvas{display:none}.status{margin-top:15px;padding:12px;border-radius:10px;background:#eef5fb;color:#1769aa;text-align:center;font-weight:bold}.buttons{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:18px}button{border:0;border-radius:10px;padding:13px 22px;font-size:14px;font-weight:bold;cursor:pointer;color:white}.open{background:linear-gradient(135deg,#1769aa,#00a8cc)}.capture{background:#16a34a}.close{background:#dc2626}button:disabled{opacity:.5;cursor:not-allowed}.photo{text-align:center;margin-top:18px}.photo img{max-width:240px;max-height:300px;border-radius:12px;border:4px solid #1769aa;display:none;margin:auto}.note{text-align:center;color:#64748b;font-size:12px;margin-top:15px}
+</style>
+</head>
+<body>
+<div class="camera-card">
+<div class="title"><h1>DB POWER LIMITED</h1><p>Consultant Gate Pass — Secure Camera</p></div>
+<div class="camera-area"><video id="video" autoplay muted playsinline></video></div>
+<canvas id="canvas"></canvas>
+<div id="status" class="status">Click OPEN CAMERA to start.</div>
+<div class="buttons">
+<button id="openBtn" class="open" onclick="startCamera()">📷 OPEN CAMERA</button>
+<button id="captureBtn" class="capture" onclick="capturePhoto()" disabled>📸 CAPTURE PHOTO</button>
+<button class="close" onclick="closeCamera()">⛔ CLOSE</button>
+</div>
+<div class="photo"><img id="preview" alt="Captured Photo"></div>
+<div class="note">Please position the consultant properly and capture a clear front-facing photograph.</div>
+</div>
+<script>
+let stream=null;
+const params=new URLSearchParams(window.location.search);
+const nonce=params.get('nonce')||'';
+async function startCamera(){
+ const status=document.getElementById('status'), openBtn=document.getElementById('openBtn'), captureBtn=document.getElementById('captureBtn');
+ try{
+  openBtn.disabled=true; status.textContent='Opening camera...';
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('Camera API is not available. Please use HTTPS and Google Chrome.');
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false});
+  const video=document.getElementById('video'); video.srcObject=stream; video.muted=true; video.playsInline=true; video.autoplay=true; await video.play();
+  captureBtn.disabled=false; status.textContent='✅ Camera ready. Position consultant and click CAPTURE PHOTO.';
+ }catch(err){
+  console.error(err); let msg='Camera could not be opened.';
+  if(err.name==='NotAllowedError') msg='❌ Camera permission denied. Click Allow when Chrome asks for camera permission.';
+  else if(err.name==='NotFoundError') msg='❌ No camera found. Please check Logitech C310 connection.';
+  else if(err.name==='NotReadableError') msg='❌ Camera is being used by another application. Close Windows Camera, Teams, Zoom etc.';
+  else if(err.message) msg='❌ '+err.message;
+  status.textContent=msg; openBtn.disabled=false;
+ }
+}
+function capturePhoto(){
+ const video=document.getElementById('video'), canvas=document.getElementById('canvas'), preview=document.getElementById('preview'), status=document.getElementById('status');
+ if(!stream||!video.videoWidth){status.textContent='❌ Camera is not ready.';return;}
+ canvas.width=video.videoWidth; canvas.height=video.videoHeight; const ctx=canvas.getContext('2d'); ctx.drawImage(video,0,0,canvas.width,canvas.height);
+ const photoData=canvas.toDataURL('image/jpeg',0.82); preview.src=photoData; preview.style.display='block'; status.textContent='✅ Photo captured. Sending to Gate Pass system...';
+ if(window.opener&&!window.opener.closed){
+  window.opener.postMessage({type:'DBPL_CONSULTANT_PHOTO',nonce:nonce,photoData:photoData},'*');
+  setTimeout(()=>{stopCamera();status.textContent='✅ Photo sent successfully. You may close this window.';},500);
+ }else status.textContent='❌ Main Gate Pass window was not found.';
+}
+function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}const v=document.getElementById('video');if(v)v.srcObject=null;const b=document.getElementById('captureBtn');if(b)b.disabled=true;}
+function closeCamera(){stopCamera();window.close();}
+window.addEventListener('beforeunload',stopCamera);
+</script>
+</body>
+</html>
