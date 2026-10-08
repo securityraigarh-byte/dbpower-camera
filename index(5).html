@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DB Power Consultant Camera</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:20px;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#071b35,#1769aa,#00a8cc);display:flex;align-items:center;justify-content:center}.card{width:min(950px,100%);background:#fff;border-radius:22px;padding:25px;box-shadow:0 25px 70px rgba(0,0,0,.35)}h1{margin:0;text-align:center;color:#071b35;font-size:25px}.sub{text-align:center;color:#64748b;margin:6px 0 20px;font-size:14px}.camera{background:#111827;border-radius:16px;overflow:hidden;min-height:300px;display:flex;align-items:center;justify-content:center}video{width:100%;max-height:580px;display:block;background:#000;object-fit:cover}.placeholder{color:#fff;text-align:center;padding:60px 20px;font-size:18px}canvas{display:none}.status{margin-top:15px;padding:13px;border-radius:10px;background:#eef5fb;color:#1769aa;text-align:center;font-weight:bold}.buttons{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:18px}button{border:0;border-radius:10px;padding:13px 22px;font-size:14px;font-weight:bold;cursor:pointer;color:#fff}button:disabled{opacity:.5;cursor:not-allowed}.open{background:#1769aa}.capture{background:#16a34a}.close{background:#dc2626}.photo{text-align:center;margin-top:18px}.photo img{display:none;width:240px;height:300px;object-fit:cover;border-radius:12px;border:4px solid #1769aa;margin:auto}.note{text-align:center;color:#64748b;font-size:12px;margin-top:15px;line-height:1.5}.success{background:#ecfdf5;color:#15803d}.error{background:#fef2f2;color:#b91c1c}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>DB POWER LIMITED</h1>
+<div class="sub">Consultant Gate Pass — Secure Camera</div>
+<div class="camera">
+<video id="video" autoplay muted playsinline></video>
+<div id="placeholder" class="placeholder">📷<br><br>Click <b>OPEN CAMERA</b> to start the Logitech webcam.</div>
+</div>
+<canvas id="canvas"></canvas>
+<div id="status" class="status">Camera not started.</div>
+<div class="buttons">
+<button id="openBtn" class="open" onclick="startCamera()">📷 OPEN CAMERA</button>
+<button id="captureBtn" class="capture" onclick="capturePhoto()" disabled>📸 CAPTURE PHOTO</button>
+<button class="close" onclick="closeCamera()">⛔ CLOSE</button>
+</div>
+<div class="photo"><img id="preview" alt="Captured Consultant Photo"></div>
+<div class="note">Use Google Chrome on this HTTPS page. When Chrome asks for camera permission, select <b>Allow</b>. Close Windows Camera, Teams, Zoom or any other application using the Logitech C310.</div>
+</div>
+<script>
+let stream=null;
+const params=new URLSearchParams(location.search);
+const nonce=params.get('nonce')||'';
+
+function setStatus(message,type='normal'){
+ const el=document.getElementById('status');
+ el.textContent=message;
+ el.className='status'+(type==='success'?' success':type==='error'?' error':'');
+}
+
+async function startCamera(){
+ const openBtn=document.getElementById('openBtn');
+ const captureBtn=document.getElementById('captureBtn');
+ const video=document.getElementById('video');
+ const placeholder=document.getElementById('placeholder');
+ try{
+  openBtn.disabled=true;
+  setStatus('Opening Logitech C310 camera...');
+  if(!window.isSecureContext) throw new Error('This camera page is not running in a secure HTTPS context.');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('Camera API is not available in this browser.');
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  try{
+   stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:{ideal:'user'}},audio:false});
+  }catch(e){
+   console.warn(e);
+   stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+  }
+  video.srcObject=stream;
+  video.muted=true;video.autoplay=true;video.playsInline=true;
+  await video.play();
+  placeholder.style.display='none';
+  captureBtn.disabled=false;
+  setStatus('✅ Camera ready. Position the consultant and click CAPTURE PHOTO.','success');
+ }catch(err){
+  console.error(err);openBtn.disabled=false;
+  let msg='Camera could not be opened.';
+  if(err.name==='NotAllowedError') msg='❌ Camera permission denied. Click the camera icon in Chrome address bar → Camera → Allow, then reload.';
+  else if(err.name==='NotFoundError') msg='❌ No camera found. Check that Logitech C310 is connected.';
+  else if(err.name==='NotReadableError') msg='❌ Logitech C310 is being used by another application. Close Camera, Teams, Zoom, etc.';
+  else if(err.name==='SecurityError') msg='❌ Browser security blocked camera access. Use the HTTPS GitHub Pages URL directly.';
+  else if(err.message) msg='❌ '+err.message;
+  setStatus(msg,'error');
+ }
+}
+
+function capturePhoto(){
+ const video=document.getElementById('video');
+ const canvas=document.getElementById('canvas');
+ const preview=document.getElementById('preview');
+ if(!stream||!video.videoWidth){setStatus('❌ Camera is not ready.','error');return;}
+ canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+ canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+ const photoData=canvas.toDataURL('image/jpeg',0.82);
+ preview.src=photoData;preview.style.display='block';
+ if(window.opener&&!window.opener.closed){
+  window.opener.postMessage({type:'DBPL_CONSULTANT_PHOTO',nonce:nonce,photoData:photoData},'*');
+  setStatus('✅ Photo captured and sent back to Gate Pass system.','success');
+  setTimeout(stopCamera,700);
+ }else setStatus('⚠️ Photo captured, but the Gate Pass window was not found.','error');
+}
+
+function stopCamera(){
+ if(stream){stream.getTracks().forEach(t=>{try{t.stop()}catch(e){}});stream=null;}
+ const video=document.getElementById('video');
+ const captureBtn=document.getElementById('captureBtn');
+ if(video) video.srcObject=null;
+ if(captureBtn) captureBtn.disabled=true;
+}
+function closeCamera(){stopCamera();window.close();}
+window.addEventListener('beforeunload',stopCamera);
+</script>
+</body>
+</html>
